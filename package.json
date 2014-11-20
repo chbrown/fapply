@@ -1,0 +1,30 @@
+{
+  "name": "fapply",
+  "version": "0.0.1",
+  "description": "File applicators",
+  "keywords": [
+    "file",
+    "apply",
+    "applicator",
+    "template"
+  ],
+  "homepage": "https://github.com/chbrown/fapply",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/chbrown/fapply.git"
+  },
+  "bugs": {
+    "email": "Christopher Brown <io@henrian.com>",
+    "url": "http://github.com/chbrown/fapply/issues"
+  },
+  "license": "MIT",
+  "author": "Christopher Brown <io@henrian.com> (http://henrian.com)",
+  "dependencies": {
+    "loge": "*",
+    "marked": "*",
+    "optimist": "*"
+  },
+  "bin": {
+    "fapply": "bin/fapply"
+  }
+}

@@ -1,0 +1,36 @@
+#!/usr/bin/env node
+/*jslint node: true */
+var logger = require('loge');
+var fapply = require('../');
+
+var optimist = require('optimist')
+  .usage([
+    'Usage: fapply <filename> [<filename>, ...]',
+  ].join('\n'))
+  .describe({
+    help: 'print this help message',
+    verbose: 'print extra output',
+    version: 'print version',
+  })
+  .alias({help: 'h', verbose: 'v'})
+  .boolean(['help', 'verbose']);
+
+var argv = optimist.argv;
+logger.level = argv.verbose ? 'debug' : 'info';
+
+if (argv.help) {
+  optimist.showHelp();
+}
+else if (argv.version) {
+  console.log(require('../package').version);
+}
+else {
+  argv._.forEach(function(filename) {
+    fapply(filename, function(err, output) {
+      if (err) {
+        return logger.error('Error processing %s: %s', filename, err);
+      }
+      console.log(output);
+    });
+  });
+}
