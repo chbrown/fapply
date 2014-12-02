@@ -18,7 +18,7 @@ In all cases, when the file is read through `fapply`, the applicator instruction
 
 ### Built-in applicators
 
-* `markdown`: Render markdown to html. `fapply` uses [`marked`](https://github.com/chjj/marked), and so the options offered are a subset of the options of `marked`:
+* `markdown`: Render markdown to html. `fapply` uses [marked](https://github.com/chjj/marked), and so the options offered are a subset of the options of `marked`:
   - `gfm`: Enable GitHub flavored markdown (default: `true`)
   - `tables`: Enable GFM tables, when `gfm: true` (default: `true`)
   - `breaks`: Enable GFM line breaks, when `gfm: true` (default: `true`)
