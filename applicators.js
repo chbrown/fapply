@@ -1,5 +1,6 @@
 /*jslint node: true */
 var fs = require('fs');
+var path = require('path');
 var marked = require('marked');
 
 /**
@@ -25,18 +26,20 @@ interface WrapOptions extends Options {
 }
 */
 
-exports.markdown = function(input, opts, callback) {
-  marked(input, opts, function(err, output) {
+exports.markdown = function(input, options, callback) {
+  marked(input, options, function(err, output) {
     if (err) return callback(err);
     callback(null, output);
   });
 };
 
-exports.wrap = function(input, opts, callback) {
-  // the working directory should already have been set by process.cwd
-  fs.readFile(opts.filepath, {encoding: 'utf8'}, function(err, wrapper_contents) {
+exports.wrap = function(input, options, callback) {
+  /** If options.__dirname has been set, use it to relativize the wrapping filename's path.
+  */
+  var filepath = options.__dirname ? path.resolve(options.__dirname, options.filepath) : options.filepath;
+  fs.readFile(filepath, {encoding: 'utf8'}, function(err, wrapper_contents) {
     if (err) return callback(err);
-    var output = wrapper_contents.replace(opts.replace, input);
+    var output = wrapper_contents.replace(options.replace, input);
     callback(null, output);
   });
 };
