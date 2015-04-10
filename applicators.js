@@ -1,7 +1,7 @@
-/*jslint node: true */
 var fs = require('fs');
 var path = require('path');
 var marked = require('marked');
+var logger = require('loge');
 
 /**
 each export in this module should be have the type:
@@ -26,17 +26,22 @@ interface WrapOptions extends Options {
 }
 */
 
-exports.markdown = function(input, options, callback) {
+exports.markdown = function markdown(input, options, callback) {
+  logger.debug('fapply:markdown');
   marked(input, options, function(err, output) {
     if (err) return callback(err);
     callback(null, output);
   });
 };
 
-exports.wrap = function(input, options, callback) {
-  /** If options.__dirname has been set, use it to relativize the wrapping filename's path.
-  */
-  var filepath = options.__dirname ? path.resolve(options.__dirname, options.filepath) : options.filepath;
+/**
+If options.__dirname is set, resolve the filename as relative to that path.
+Otherwise, resolve
+*/
+exports.wrap = function wrap(input, options, callback) {
+  var resolve_from_path = (options.__dirname !== undefined) ? options.__dirname : process.cwd();
+  var filepath = path.resolve(resolve_from_path, options.filepath);
+  logger.debug('fapply:wrap(filepath="%s")', filepath);
   fs.readFile(filepath, {encoding: 'utf8'}, function(err, wrapper_contents) {
     if (err) return callback(err);
     var output = wrapper_contents.replace(options.replace, input);

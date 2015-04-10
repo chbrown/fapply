@@ -1,4 +1,3 @@
-/*jslint node: true */
 var fs = require('fs');
 var path = require('path');
 var applicators = require('./applicators');
@@ -29,16 +28,16 @@ function getApplicatorInstructions(line) {
   }
 }
 
-var fapply = module.exports = function(input, global_options, callback) {
-  /** export function(input: string,
-                      global_options: { __dirname?: string },
-                      callback: (error: Error, result: string))
+/** export function(input: string,
+                    global_options: { __dirname?: string },
+                    callback: (error: Error, result: string))
 
-  The global_options object will be passed along to all the applicators,
-  extending the options specified in each file's "applicator instructions"
-  options object. Most often, global_options will only contain a single
-  field: `__dirname`.
-  */
+The global_options object will be passed along to all the applicators,
+extending the options specified in each file's "applicator instructions"
+options object. Most often, global_options will only contain a single
+field: `__dirname`.
+*/
+var fapply = module.exports = function(input, global_options, callback) {
   // TODO: maybe allow multiline applicator instructions?
   var first_linebreak_index = input.indexOf('\n');
   var first_line = input.slice(0, first_linebreak_index);
@@ -74,13 +73,13 @@ var fapply = module.exports = function(input, global_options, callback) {
   })();
 };
 
-fapply.files = function(input_filepath, output_filepath, callback) {
-  /** export function(input_filepath: string,
-                      output_filepath: string,
-                      callback: (error: Error, result: string))
+/** export function(input_filepath: string,
+                    output_filepath: string,
+                    callback: (error: Error, result: string))
 
-  Like plain fapply(...), but handle reading and writing files by the given filepaths.
-  */
+Like plain fapply(...), but handle reading and writing files by the given filepaths.
+*/
+fapply.files = function(input_filepath, output_filepath, callback) {
   fs.readFile(input_filepath, {encoding: 'utf8'}, function(err, input) {
     if (err) return callback(err);
 
