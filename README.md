@@ -37,4 +37,4 @@ In all cases, when the file is read through `fapply`, the applicator instruction
 
 ## License
 
-Copyright ©2014 Christopher Brown. [MIT Licensed](http://opensource.org/licenses/MIT).
+Copyright 2014-2015 Christopher Brown. [MIT Licensed](http://chbrown.github.io/licenses/MIT/#2014-2015).

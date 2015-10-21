@@ -11,7 +11,7 @@
   "homepage": "https://github.com/chbrown/fapply",
   "repository": {
     "type": "git",
-    "url": "git://github.com/chbrown/fapply.git"
+    "url": "https://github.com/chbrown/fapply.git"
   },
   "bugs": {
     "email": "Christopher Brown <io@henrian.com>",
@@ -22,7 +22,12 @@
   "dependencies": {
     "loge": "*",
     "marked": "*",
-    "optimist": "*"
+    "mkdirp": "*",
+    "walk-stream": "*",
+    "yargs": "*"
+  },
+  "devDependencies": {
+    "typescript": "next"
   },
   "bin": {
     "fapply": "bin/fapply"

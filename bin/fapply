@@ -1,42 +1,65 @@
 #!/usr/bin/env node
-var fs = require('fs');
-var path = require('path');
-var logger = require('loge');
+var loge = require('loge');
 var fapply = require('../');
 
-var optimist = require('optimist')
-  .usage([
-    'Usage: fapply <filename> [<filename>, ...]',
-  ].join('\n'))
+var argvparser = require('yargs')
+  .usage('Usage: fapply <command> <arguments...>')
+  .command('map', 'Transform a single file')
+  .example('map', 'fapply map readme.md readme.html')
+  .command('walk', 'Map all files in a directory to match a target directory')
+  .example('walk', 'fapply walk src/ gh-pages/')
   .describe({
     help: 'print this help message',
     verbose: 'print extra output',
     version: 'print version',
   })
-  .alias({help: 'h', verbose: 'v'})
-  .boolean(['help', 'verbose']);
+  .alias({
+    help: ['h', '?'],
+    verbose: ['v'],
+  })
+  .boolean([
+    'help',
+    'verbose',
+    'version',
+  ]);
 
-var argv = optimist.argv;
-logger.level = argv.verbose ? 'debug' : 'info';
+var argv = argvparser.argv;
+fapply.logger.level = argv.verbose ? loge.Level.debug : loge.Level.info;
 
 if (argv.help) {
-  optimist.showHelp();
+  argvparser.showHelp();
 }
 else if (argv.version) {
   console.log(require('../package').version);
 }
 else {
-  argv._.forEach(function(filename) {
-    logger.debug('fapply(%s)', filename);
-    fs.readFile(filename, {encoding: 'utf8'}, function(err, input) {
-      if (err) throw new Error('Error reading ' + filename + ': ' + err.stack);
-      var options = {
-        __dirname: path.dirname(filename)
-      };
-      fapply(input, options, function(err, output) {
-        if (err) throw new Error('Error processing ' + filename + ': ' + err.stack);
-        console.log(output);
-      });
+  argv = argvparser.demand(2).argv;
+  var command = argv._[0];
+  var input_filepath = argv._[1] || '-';
+  if (input_filepath === '-') input_filepath = '/dev/stdin';
+  var output_filepath = argv._[2] || '-';
+  if (output_filepath === '-') output_filepath = '/dev/stdout';
+  if (command === 'map') {
+    fapply.transformFile(input_filepath, output_filepath, function(error) {
+      if (error) throw new Error('Error: ' + error.stack);
+      process.exit(0);
     });
-  });
+  }
+  else if (command === 'walk') {
+    argvparser.demand(3).check(function(argv) {
+      if (argv._[1] === '-' || argv._[2] === '-') {
+        throw new Error('Both input and output directories must be actual paths');
+      }
+      return true;
+    }).argv;
+    fapply.transformDirectory(input_filepath, output_filepath, function(error) {
+      if (error) throw new Error('Error: ' + error.stack);
+      process.exit(0);
+    });
+  }
+  else {
+    argvparser.check(function() {
+      throw new Error('Unrecognized command: "' + command + '"');
+    }).argv;
+  }
 }

@@ -1,99 +1,139 @@
-var fs = require('fs');
-var path = require('path');
+var __extends = (this && this.__extends) || function (d, b) {
+    for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
+    function __() { this.constructor = d; }
+    d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
+};
+var fs_1 = require('fs');
+var path_1 = require('path');
+var stream_1 = require('stream');
+var loge_1 = require('loge');
+var walk_stream_1 = require('walk-stream');
 var applicators = require('./applicators');
-
+var mkdirp = require('mkdirp');
+exports.logger = new loge_1.Logger(process.stderr);
 function extend(target, source) {
-  for (var key in source) {
-    if (source.hasOwnProperty(key)) {
-      target[key] = source[key];
+    for (var key in source) {
+        if (source.hasOwnProperty(key)) {
+            target[key] = source[key];
+        }
     }
-  }
-  return target;
+    return target;
 }
+/** returns a list of
 
-function getApplicatorInstructions(line) {
-  /** returns a list of { apply: "applicator name", ...opts }
-
-  I'm ignoring the extension and just grabbing whatever I can from the first line.
-  */
-  var html_comment_match = line.match(/^<!--\s*(.+)\s*-->$/);
-  if (html_comment_match) {
-    return JSON.parse(html_comment_match[1]);
-  }
-
-  // otherwise, match a line starting with # or // or ---
-  var common_comment_match = line.match(/^(?:#|\/\/|---)\s*(.+)\s*$/);
-  if (common_comment_match) {
-    return JSON.parse(common_comment_match[1]);
-  }
+I'm ignoring the extension and just grabbing whatever I can from the first line.
+*/
+function parseApplicatorInstructions(line) {
+    var html_comment_match = line.match(/^<!--\s*(.+)\s*-->$/);
+    if (html_comment_match) {
+        return JSON.parse(html_comment_match[1]);
+    }
+    // otherwise, match a line starting with # or // or ---
+    var common_comment_match = line.match(/^(?:#|\/\/|---)\s*(.+)\s*$/);
+    if (common_comment_match) {
+        return JSON.parse(common_comment_match[1]);
+    }
 }
-
-/** export function(input: string,
-                    global_options: { __dirname?: string },
-                    callback: (error: Error, result: string))
-
+/**
 The global_options object will be passed along to all the applicators,
 extending the options specified in each file's "applicator instructions"
 options object. Most often, global_options will only contain a single
 field: `__dirname`.
 */
-var fapply = module.exports = function(input, global_options, callback) {
-  // TODO: maybe allow multiline applicator instructions?
-  var first_linebreak_index = input.indexOf('\n');
-  var first_line = input.slice(0, first_linebreak_index);
-
-  var applicator_instructions = getApplicatorInstructions(first_line);
-  if (applicator_instructions === undefined) {
-    // if we didn't find instructions, use the default of none,
-    // meaning the file contents simply pass through
-    applicator_instructions = [];
-  }
-  else {
-    // if we did find instructions, slice them off
-    input = input.slice(first_linebreak_index + 1);
-  }
-
-  (function loop() {
-    var applicator_instruction = applicator_instructions.shift();
-    if (applicator_instruction) {
-      var applicator = applicators[applicator_instruction.apply];
-
-      var options = extend(applicator_instruction, global_options);
-      delete options.apply;
-
-      applicator(input, options, function(err, output) {
-        if (err) return callback(err);
-        input = output;
-        loop();
-      });
+function transformString(input, global_options, callback) {
+    // TODO: maybe allow multiline applicator instructions?
+    var first_linebreak_index = input.indexOf('\n');
+    var first_line = input.slice(0, first_linebreak_index);
+    var applicator_instructions = parseApplicatorInstructions(first_line);
+    if (applicator_instructions === undefined) {
+        // if we didn't find instructions, use the default of none,
+        // meaning the file contents simply pass through
+        applicator_instructions = [];
     }
     else {
-      return callback(null, input);
+        // if we did find instructions, slice them off
+        input = input.slice(first_linebreak_index + 1);
     }
-  })();
-};
-
-/** export function(input_filepath: string,
-                    output_filepath: string,
-                    callback: (error: Error, result: string))
-
-Like plain fapply(...), but handle reading and writing files by the given filepaths.
+    /**
+    loop() is a IIFE that simply provides the functionality of a sort of mutable
+    version of async.waterfall.
+    */
+    (function loop() {
+        if (applicator_instructions.length === 0) {
+            // okay, we're done
+            return callback(null, input);
+        }
+        var applicator_instruction = applicator_instructions.shift();
+        var applicator_name = applicator_instruction.apply;
+        delete applicator_instruction.apply;
+        var applicator = applicators[applicator_name];
+        var options = extend(applicator_instruction, global_options);
+        exports.logger.debug("fapply:" + applicator_name + "(" + JSON.stringify(options) + ")");
+        applicator(input, options, function (error, output) {
+            if (error)
+                return callback(error);
+            input = output;
+            loop();
+        });
+    })();
+}
+exports.transformString = transformString;
+/**
+Much like plain transformString(...), only transforms one document at a time,
+but it handles reading and writing files at the given filepaths.
 */
-fapply.files = function(input_filepath, output_filepath, callback) {
-  fs.readFile(input_filepath, {encoding: 'utf8'}, function(err, input) {
-    if (err) return callback(err);
-
-    // changing the working directory to the same as the current file would
-    // be easier than passing around a relative directory, but if the calling
-    // script depends on process.cwd, it might get lost.
-    var options = {
-      __dirname: path.dirname(input_filepath)
-    };
-
-    fapply(input, options, function(err, output) {
-      if (err) return callback(err);
-
-      fs.writeFile(output_filepath, output, {encoding: 'utf8'}, callback);
+function transformFile(input_filepath, output_filepath, callback) {
+    exports.logger.debug('transformFile(%s -> %s)', input_filepath, output_filepath);
+    fs_1.readFile(input_filepath, { encoding: 'utf8' }, function (error, input) {
+        if (error)
+            return callback(error);
+        // changing the working directory to the same as the current file would
+        // be easier than passing around a relative directory, but if the calling
+        // script depends on process.cwd, it might get lost.
+        var options = { __dirname: path_1.dirname(input_filepath) };
+        transformString(input, options, function (error, output) {
+            if (error)
+                return callback(error);
+            fs_1.writeFile(output_filepath, output, { encoding: 'utf8' }, callback);
+        });
     });
-  });
-};
+}
+exports.transformFile = transformFile;
+/**
+WalkStreamTransformer takes an input stream of FilesystemNode objects,
+transforms each one, and writes a log line to its output.
+*/
+var WalkStreamTransformer = (function (_super) {
+    __extends(WalkStreamTransformer, _super);
+    function WalkStreamTransformer(input_dirpath, output_dirpath, options) {
+        if (options === void 0) { options = { objectMode: true }; }
+        _super.call(this, options);
+        this.input_dirpath = input_dirpath;
+        this.output_dirpath = output_dirpath;
+    }
+    WalkStreamTransformer.prototype._transform = function (node, encoding, callback) {
+        var input_filepath = node.path;
+        var output_filepath = input_filepath.replace(this.input_dirpath, this.output_dirpath);
+        mkdirp.sync(path_1.dirname(output_filepath));
+        if (node.stats.isFile()) {
+            // only change filenames for .md and .html
+            // TODO: parameterize this rename somehow
+            if (input_filepath.match(/(.md|.html)$/)) {
+                output_filepath = output_filepath.replace('.md', '.html');
+            }
+            transformFile(input_filepath, output_filepath, function (error) {
+                callback(error, input_filepath + " -> " + output_filepath + "\n");
+            });
+        }
+        else {
+            callback(null, "ignoring " + input_filepath + "\n");
+        }
+    };
+    return WalkStreamTransformer;
+})(stream_1.Transform);
+function transformDirectory(input_dirpath, output_dirpath, callback) {
+    new walk_stream_1.default(input_dirpath)
+        .pipe(new WalkStreamTransformer(input_dirpath, output_dirpath))
+        .pipe(process.stderr);
+}
+exports.transformDirectory = transformDirectory;
