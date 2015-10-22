@@ -40,10 +40,11 @@ extending the options specified in each file's "applicator instructions"
 options object. Most often, global_options will only contain a single
 field: `__dirname`.
 */
-function transformString(input, global_options, callback) {
+function transformBuffer(input, global_options, callback) {
     // TODO: maybe allow multiline applicator instructions?
-    var first_linebreak_index = input.indexOf('\n');
-    var first_line = input.slice(0, first_linebreak_index);
+    var header_fragment = input.slice(0, 1024).toString('utf8');
+    var first_linebreak_index = header_fragment.indexOf('\n');
+    var first_line = header_fragment.slice(0, first_linebreak_index);
     var applicator_instructions = parseApplicatorInstructions(first_line);
     if (applicator_instructions === undefined) {
         // if we didn't find instructions, use the default of none,
@@ -52,7 +53,8 @@ function transformString(input, global_options, callback) {
     }
     else {
         // if we did find instructions, slice them off
-        input = input.slice(first_linebreak_index + 1);
+        var first_line_byteLength = Buffer.byteLength(first_line, 'utf8');
+        input = input.slice(first_line_byteLength + 1);
     }
     /**
     loop() is a IIFE that simply provides the functionality of a sort of mutable
@@ -77,24 +79,24 @@ function transformString(input, global_options, callback) {
         });
     })();
 }
-exports.transformString = transformString;
+exports.transformBuffer = transformBuffer;
 /**
 Much like plain transformString(...), only transforms one document at a time,
 but it handles reading and writing files at the given filepaths.
 */
 function transformFile(input_filepath, output_filepath, callback) {
     exports.logger.debug('transformFile(%s -> %s)', input_filepath, output_filepath);
-    fs_1.readFile(input_filepath, { encoding: 'utf8' }, function (error, input) {
+    fs_1.readFile(input_filepath, function (error, input) {
         if (error)
             return callback(error);
         // changing the working directory to the same as the current file would
         // be easier than passing around a relative directory, but if the calling
         // script depends on process.cwd, it might get lost.
         var options = { __dirname: path_1.dirname(input_filepath) };
-        transformString(input, options, function (error, output) {
+        transformBuffer(input, options, function (error, output) {
             if (error)
                 return callback(error);
-            fs_1.writeFile(output_filepath, output, { encoding: 'utf8' }, callback);
+            fs_1.writeFile(output_filepath, output, callback);
         });
     });
 }

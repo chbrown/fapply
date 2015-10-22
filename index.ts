@@ -52,12 +52,13 @@ extending the options specified in each file's "applicator instructions"
 options object. Most often, global_options will only contain a single
 field: `__dirname`.
 */
-export function transformString(input: string,
+export function transformBuffer(input: Buffer,
                                 global_options: GlobalTransformOptions,
-                                callback: (error: Error, result?: string) => void) {
+                                callback: (error: Error, output?: Buffer) => void) {
   // TODO: maybe allow multiline applicator instructions?
-  var first_linebreak_index = input.indexOf('\n');
-  var first_line = input.slice(0, first_linebreak_index);
+  var header_fragment = input.slice(0, 1024).toString('utf8');
+  var first_linebreak_index = header_fragment.indexOf('\n');
+  var first_line = header_fragment.slice(0, first_linebreak_index);
 
   var applicator_instructions = parseApplicatorInstructions(first_line);
   if (applicator_instructions === undefined) {
@@ -67,7 +68,8 @@ export function transformString(input: string,
   }
   else {
     // if we did find instructions, slice them off
-    input = input.slice(first_linebreak_index + 1);
+    var first_line_byteLength = Buffer.byteLength(first_line, 'utf8');
+    input = input.slice(first_line_byteLength + 1);
   }
 
   /**
@@ -104,7 +106,7 @@ export function transformFile(input_filepath: string,
                               output_filepath: string,
                               callback: (error?: Error) => void) {
   logger.debug('transformFile(%s -> %s)', input_filepath, output_filepath);
-  readFile(input_filepath, {encoding: 'utf8'}, (error: Error, input: string) => {
+  readFile(input_filepath, (error: Error, input: Buffer) => {
     if (error) return callback(error);
 
     // changing the working directory to the same as the current file would
@@ -112,10 +114,10 @@ export function transformFile(input_filepath: string,
     // script depends on process.cwd, it might get lost.
     var options = {__dirname: dirname(input_filepath)};
 
-    transformString(input, options, (error: Error, output: string) => {
+    transformBuffer(input, options, (error: Error, output: Buffer) => {
       if (error) return callback(error);
 
-      writeFile(output_filepath, output, {encoding: 'utf8'}, callback);
+      writeFile(output_filepath, output, callback);
     });
   });
 }
