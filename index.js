@@ -8,7 +8,7 @@ var path_1 = require('path');
 var stream_1 = require('stream');
 var loge_1 = require('loge');
 var walk_stream_1 = require('walk-stream');
-var applicators = require('./applicators');
+var applicators_1 = require('./applicators');
 var mkdirp = require('mkdirp');
 exports.logger = new loge_1.Logger(process.stderr);
 function extend(target, source) {
@@ -40,7 +40,7 @@ extending the options specified in each file's "applicator instructions"
 options object. Most often, global_options will only contain a single
 field: `__dirname`.
 */
-function transformBuffer(input, global_options, callback) {
+function transformBuffer(input, input_extension, global_options, callback) {
     // TODO: maybe allow multiline applicator instructions?
     var header_fragment = input.slice(0, 1024).toString('utf8');
     var first_linebreak_index = header_fragment.indexOf('\n');
@@ -63,18 +63,23 @@ function transformBuffer(input, global_options, callback) {
     (function loop() {
         if (applicator_instructions.length === 0) {
             // okay, we're done
-            return callback(null, input);
+            return callback(null, input, input_extension);
         }
         var applicator_instruction = applicator_instructions.shift();
         var applicator_name = applicator_instruction.apply;
         delete applicator_instruction.apply;
-        var applicator = applicators[applicator_name];
+        var applicator = applicators_1.default[applicator_name];
         var options = extend(applicator_instruction, global_options);
         exports.logger.debug("fapply:" + applicator_name + "(" + JSON.stringify(options) + ")");
-        applicator(input, options, function (error, output) {
+        if (applicator === undefined) {
+            exports.logger.warning("Could not find applicator \"" + applicator_name + "\"; skipping");
+            applicator = applicators_1.default.identity;
+        }
+        applicator.transform(input, options, function (error, output) {
             if (error)
                 return callback(error);
             input = output;
+            input_extension = applicator.extension(input_extension);
             loop();
         });
     })();
@@ -85,7 +90,6 @@ Much like plain transformString(...), only transforms one document at a time,
 but it handles reading and writing files at the given filepaths.
 */
 function transformFile(input_filepath, output_filepath, callback) {
-    exports.logger.debug('transformFile(%s -> %s)', input_filepath, output_filepath);
     fs_1.readFile(input_filepath, function (error, input) {
         if (error)
             return callback(error);
@@ -93,9 +97,12 @@ function transformFile(input_filepath, output_filepath, callback) {
         // be easier than passing around a relative directory, but if the calling
         // script depends on process.cwd, it might get lost.
         var options = { __dirname: path_1.dirname(input_filepath) };
-        transformBuffer(input, options, function (error, output) {
+        var input_extension = path_1.extname(input_filepath);
+        transformBuffer(input, input_extension, options, function (error, output, output_extension) {
             if (error)
                 return callback(error);
+            output_filepath = output_filepath.replace(new RegExp(input_extension + '$'), output_extension);
+            exports.logger.debug('transformFile(%s -> %s)', input_filepath, output_filepath);
             fs_1.writeFile(output_filepath, output, callback);
         });
     });
@@ -118,11 +125,6 @@ var WalkStreamTransformer = (function (_super) {
         var output_filepath = input_filepath.replace(this.input_dirpath, this.output_dirpath);
         mkdirp.sync(path_1.dirname(output_filepath));
         if (node.stats.isFile()) {
-            // only change filenames for .md and .html
-            // TODO: parameterize this rename somehow
-            if (input_filepath.match(/(.md|.html)$/)) {
-                output_filepath = output_filepath.replace('.md', '.html');
-            }
             transformFile(input_filepath, output_filepath, function (error) {
                 callback(error, input_filepath + " -> " + output_filepath + "\n");
             });

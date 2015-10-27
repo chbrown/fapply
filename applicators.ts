@@ -1,16 +1,17 @@
 import {readFile} from 'fs';
 import {resolve} from 'path';
 var marked = require('marked');
+var less_module = require('less');
 
-interface ApplicatorCallback {
+export interface TransformCallback {
   (error: Error, output?: Buffer): void;
 }
 
 /**
 each export in this module should implement the Applicator type
 */
-interface Applicator {
-  (input: string, options: any, callback: ApplicatorCallback): void;
+export interface Transform {
+  (input: Buffer, options: any, callback: TransformCallback): void;
 }
 
 interface MarkdownOptions {
@@ -23,7 +24,7 @@ interface MarkdownOptions {
   smartypants?: boolean; // default: false
 }
 
-export function markdown(input: Buffer, options: MarkdownOptions, callback: ApplicatorCallback) {
+function markdown(input: Buffer, options: MarkdownOptions, callback: TransformCallback) {
   var input_string = input.toString('utf8');
   marked(input_string, options, (error: Error, output_string: string) => {
     if (error) return callback(error);
@@ -42,7 +43,7 @@ interface WrapOptions {
   __dirname: string;
 }
 
-export function wrap(input: Buffer, options: WrapOptions, callback: ApplicatorCallback) {
+function wrap(input: Buffer, options: WrapOptions, callback: TransformCallback) {
   var input_string = input.toString('utf8');
   var resolve_from = (options.__dirname !== undefined) ? options.__dirname : process.cwd();
   var filepath = resolve(resolve_from, options.filepath);
@@ -53,3 +54,88 @@ export function wrap(input: Buffer, options: WrapOptions, callback: ApplicatorCa
     callback(null, output);
   });
 }
+
+interface LessRenderResult {
+  css: string;
+  imports: any;
+  map?: any;
+}
+
+interface LessOptions {
+  filename: any;
+  plugins: any;
+  rootFileInfo: any;
+  // context options
+  /** option - unmodified - paths to search for imports on */
+  paths: string | string[];
+  /** option - whether to adjust URL's to be relative */
+  relativeUrls: boolean;
+  /** option - rootpath to append to URL's */
+  rootpath: string;
+  /** option - ??? */
+  strictImports: any;
+  /** option - whether to allow imports from insecure ssl hosts */
+  insecure: boolean;
+  /** option - whether to dump line numbers */
+  dumpLineNumbers: boolean;
+  /** option - whether to compress */
+  compress: boolean;
+  /** option - whether to import synchronously */
+  syncImport: boolean;
+  /** option - whether to chunk input. more performant but causes parse issues. */
+  chunkInput: any;
+  /** browser only - mime type for sheet import */
+  mime: any;
+  /** browser only - whether to use the per file session cache */
+  useFileCache: any;
+  /** option & context - whether to process imports. if false then imports will
+  not be imported. Used by the import manager to stop multiple import visitors being created. */
+  processImports: boolean;
+  /** Used to indicate that the contents are imported by reference */
+  reference: any;
+  /** Used as the plugin manager for the session */
+  pluginManager: any;
+}
+
+function less(input: Buffer, options: LessOptions, callback: TransformCallback) {
+  var input_string = input.toString('utf8');
+  less_module.render(input_string, options, (error: Error, result: LessRenderResult) => {
+    if (error) return callback(error);
+
+    var output = new Buffer(result.css, 'utf8');
+    callback(null, output);
+  });
+}
+
+interface IdentityOptions { }
+
+function identity(input: Buffer, options: IdentityOptions, callback: TransformCallback) {
+  setImmediate(() => callback(null, input));
+}
+
+/**
+extensions is a mapping from input extensions to output extensions, based on the
+applied applicators.
+
+const applicators: {[index: string]: Applicator} = ...
+*/
+const applicators = {
+  markdown: {
+    transform: markdown,
+    extension: (ext: string) => '.html',
+  },
+  wrap: {
+    transform: wrap,
+    extension: (ext: string) => ext,
+  },
+  less: {
+    transform: less,
+    extension: (ext: string) => '.css',
+  },
+  identity: {
+    transform: identity,
+    extension: (ext: string) => ext,
+  },
+};
+
+export default applicators;

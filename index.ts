@@ -1,10 +1,10 @@
 import {readFile, writeFile} from 'fs';
-import {dirname} from 'path';
+import {dirname, extname} from 'path';
 import {Transform, TransformOptions} from 'stream';
 import {Logger} from 'loge';
 import WalkStream, {FilesystemNode} from 'walk-stream';
 
-import * as applicators from './applicators';
+import applicators from './applicators';
 
 var mkdirp = require('mkdirp');
 export const logger = new Logger(process.stderr);
@@ -46,15 +46,16 @@ interface GlobalTransformOptions {
   __dirname?: string;
 }
 
+
 /**
 The global_options object will be passed along to all the applicators,
 extending the options specified in each file's "applicator instructions"
 options object. Most often, global_options will only contain a single
 field: `__dirname`.
 */
-export function transformBuffer(input: Buffer,
+export function transformBuffer(input: Buffer, input_extension: string,
                                 global_options: GlobalTransformOptions,
-                                callback: (error: Error, output?: Buffer) => void) {
+                                callback: (error: Error, output?: Buffer, output_extension?: string) => void) {
   // TODO: maybe allow multiline applicator instructions?
   var header_fragment = input.slice(0, 1024).toString('utf8');
   var first_linebreak_index = header_fragment.indexOf('\n');
@@ -79,7 +80,7 @@ export function transformBuffer(input: Buffer,
   (function loop() {
     if (applicator_instructions.length === 0) {
       // okay, we're done
-      return callback(null, input);
+      return callback(null, input, input_extension);
     }
 
     var applicator_instruction = applicator_instructions.shift();
@@ -90,9 +91,15 @@ export function transformBuffer(input: Buffer,
     var options = extend(applicator_instruction, global_options);
     logger.debug(`fapply:${applicator_name}(${JSON.stringify(options)})`);
 
-    applicator(input, options, (error, output) => {
+    if (applicator === undefined) {
+      logger.warning(`Could not find applicator "${applicator_name}"; skipping`);
+      applicator = applicators.identity;
+    }
+
+    applicator.transform(input, options, (error, output) => {
       if (error) return callback(error);
       input = output;
+      input_extension = applicator.extension(input_extension);
       loop();
     });
   })();
@@ -105,7 +112,6 @@ but it handles reading and writing files at the given filepaths.
 export function transformFile(input_filepath: string,
                               output_filepath: string,
                               callback: (error?: Error) => void) {
-  logger.debug('transformFile(%s -> %s)', input_filepath, output_filepath);
   readFile(input_filepath, (error: Error, input: Buffer) => {
     if (error) return callback(error);
 
@@ -114,9 +120,13 @@ export function transformFile(input_filepath: string,
     // script depends on process.cwd, it might get lost.
     var options = {__dirname: dirname(input_filepath)};
 
-    transformBuffer(input, options, (error: Error, output: Buffer) => {
+    var input_extension = extname(input_filepath);
+
+    transformBuffer(input, input_extension, options, (error, output, output_extension) => {
       if (error) return callback(error);
 
+      output_filepath = output_filepath.replace(new RegExp(input_extension + '$'), output_extension);
+      logger.debug('transformFile(%s -> %s)', input_filepath, output_filepath);
       writeFile(output_filepath, output, callback);
     });
   });
@@ -138,11 +148,6 @@ class WalkStreamTransformer extends Transform {
     mkdirp.sync(dirname(output_filepath))
 
     if (node.stats.isFile()) {
-      // only change filenames for .md and .html
-      // TODO: parameterize this rename somehow
-      if (input_filepath.match(/(.md|.html)$/)) {
-        output_filepath = output_filepath.replace('.md', '.html');
-      }
       transformFile(input_filepath, output_filepath, (error) => {
         callback(error, `${input_filepath} -> ${output_filepath}\n`);
       });
