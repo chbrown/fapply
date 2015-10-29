@@ -2,6 +2,8 @@ import {readFile} from 'fs';
 import {resolve} from 'path';
 var marked = require('marked');
 var less_module = require('less');
+var autoprefixer = require('autoprefixer');
+var postcss = require('postcss');
 
 export interface TransformCallback {
   (error: Error, output?: Buffer): void;
@@ -113,6 +115,42 @@ function identity(input: Buffer, options: IdentityOptions, callback: TransformCa
   setImmediate(() => callback(null, input));
 }
 
+interface InterpolateOptions {
+  /** the regular expression pattern to replace */
+  pattern: string;
+  /** the code to eval, the result of which will replace pattern */
+  js: string;
+}
+
+function interpolate(input: Buffer, options: InterpolateOptions, callback: TransformCallback) {
+  var regExp = new RegExp(options.pattern, 'g');
+  var input_string = input.toString('utf8');
+  setImmediate(() => {
+    var output_string = input_string;
+    try {
+      var replacement = eval(options.js);
+      output_string = input_string.replace(regExp, replacement);
+    }
+    catch (exc) {
+      return callback(null, input);
+    }
+    var output = new Buffer(output_string, 'utf8');
+    callback(null, output);
+  });
+}
+
+interface AutoprefixOptions { }
+
+function autoprefix(input: Buffer, options: AutoprefixOptions, callback: TransformCallback) {
+  var input_string = input.toString('utf8');
+  postcss([autoprefixer]).process(input_string).then(result => {
+    result.warnings().forEach(warning => console.warn(warning.toString()));
+    var output = new Buffer(result.css, 'utf8');
+    callback(null, output);
+  }, error => callback(error));
+}
+
+
 /**
 extensions is a mapping from input extensions to output extensions, based on the
 applied applicators.
@@ -134,6 +172,14 @@ const applicators = {
   },
   identity: {
     transform: identity,
+    extension: (ext: string) => ext,
+  },
+  interpolate: {
+    transform: interpolate,
+    extension: (ext: string) => ext,
+  },
+  autoprefix: {
+    transform: autoprefix,
     extension: (ext: string) => ext,
   },
 };

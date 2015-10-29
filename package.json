@@ -20,10 +20,12 @@
   "license": "MIT",
   "author": "Christopher Brown <io@henrian.com> (http://henrian.com)",
   "dependencies": {
+    "autoprefixer": "*",
     "less": "*",
     "loge": "*",
     "marked": "*",
     "mkdirp": "*",
+    "postcss": "*",
     "walk-stream": "*",
     "yargs": "*"
   },
