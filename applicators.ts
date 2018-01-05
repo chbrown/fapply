@@ -1,9 +1,12 @@
 import {readFile} from 'fs';
 import {resolve} from 'path';
-var marked = require('marked');
-var less_module = require('less');
-var autoprefixer = require('autoprefixer');
-var postcss = require('postcss');
+import * as marked from 'marked';
+import * as less_module from 'less';
+import * as postcss from 'postcss';
+// @types/autoprefixer@6.7.3 is not compatible with postcss@6.0.15,
+// but the preceding major versions of those packages (& their corresponding @types)
+// work great together.
+import * as autoprefixer from 'autoprefixer';
 
 export interface TransformCallback {
   (error: Error, output?: Buffer): void;
@@ -27,10 +30,10 @@ interface MarkdownOptions {
 }
 
 function markdown(input: Buffer, options: MarkdownOptions, callback: TransformCallback) {
-  var input_string = input.toString('utf8');
+  const input_string = input.toString('utf8');
   marked(input_string, options, (error: Error, output_string: string) => {
     if (error) return callback(error);
-    var output = new Buffer(output_string, 'utf8');
+    const output = new Buffer(output_string, 'utf8');
     callback(null, output);
   });
 }
@@ -46,21 +49,15 @@ interface WrapOptions {
 }
 
 function wrap(input: Buffer, options: WrapOptions, callback: TransformCallback) {
-  var input_string = input.toString('utf8');
-  var resolve_from = (options.__dirname !== undefined) ? options.__dirname : process.cwd();
-  var filepath = resolve(resolve_from, options.filepath);
+  const input_string = input.toString('utf8');
+  const resolve_from = (options.__dirname !== undefined) ? options.__dirname : process.cwd();
+  const filepath = resolve(resolve_from, options.filepath);
   readFile(filepath, {encoding: 'utf8'}, (error: Error, wrapper_contents?: string) => {
     if (error) return callback(error);
-    var output_string = wrapper_contents.replace(options.replace, input_string);
-    var output = new Buffer(output_string, 'utf8');
+    const output_string = wrapper_contents.replace(options.replace, input_string);
+    const output = new Buffer(output_string, 'utf8');
     callback(null, output);
   });
-}
-
-interface LessRenderResult {
-  css: string;
-  imports: any;
-  map?: any;
 }
 
 interface LessOptions {
@@ -100,11 +97,15 @@ interface LessOptions {
 }
 
 function less(input: Buffer, options: LessOptions, callback: TransformCallback) {
-  var input_string = input.toString('utf8');
-  less_module.render(input_string, options, (error: Error, result: LessRenderResult) => {
-    if (error) return callback(error);
+  const input_string = input.toString('utf8');
+  less_module.render(input_string, options, (less_error, less_output) => {
+    if (less_error) {
+      const error = new Error(less_error.message)
+      Object.assign(error, less_error)
+      return callback(error);
+    }
 
-    var output = new Buffer(result.css, 'utf8');
+    const output = new Buffer(less_output.css, 'utf8');
     callback(null, output);
   });
 }
@@ -123,18 +124,18 @@ interface InterpolateOptions {
 }
 
 function interpolate(input: Buffer, options: InterpolateOptions, callback: TransformCallback) {
-  var regExp = new RegExp(options.pattern, 'g');
-  var input_string = input.toString('utf8');
+  const regExp = new RegExp(options.pattern, 'g');
+  const input_string = input.toString('utf8');
   setImmediate(() => {
-    var output_string = input_string;
+    let output_string = input_string;
     try {
-      var replacement = eval(options.js);
+      const replacement = eval(options.js);
       output_string = input_string.replace(regExp, replacement);
     }
     catch (exc) {
       return callback(null, input);
     }
-    var output = new Buffer(output_string, 'utf8');
+    const output = new Buffer(output_string, 'utf8');
     callback(null, output);
   });
 }
@@ -142,10 +143,10 @@ function interpolate(input: Buffer, options: InterpolateOptions, callback: Trans
 interface AutoprefixOptions { }
 
 function autoprefix(input: Buffer, options: AutoprefixOptions, callback: TransformCallback) {
-  var input_string = input.toString('utf8');
+  const input_string = input.toString('utf8');
   postcss([autoprefixer]).process(input_string).then(result => {
     result.warnings().forEach(warning => console.warn(warning.toString()));
-    var output = new Buffer(result.css, 'utf8');
+    const output = new Buffer(result.css, 'utf8');
     callback(null, output);
   }, error => callback(error));
 }

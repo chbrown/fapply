@@ -20,19 +20,29 @@
   "license": "MIT",
   "author": "Christopher Brown <io@henrian.com> (http://henrian.com)",
   "dependencies": {
-    "autoprefixer": "6.3.6",
-    "less": "2.7.1",
+    "autoprefixer": "^6.7.7",
+    "less": "^2.7.3",
     "loge": "1.0.4",
     "marked": "^0.3.9",
-    "mkdirp": "0.5.1",
-    "postcss": "5.0.21",
+    "mkdirp": "^0.5.1",
+    "postcss": "^5.0.21",
     "walk-stream": "0.1.0",
-    "yargs": "4.7.1"
+    "yargs": "^4.8.1"
   },
   "devDependencies": {
-    "typescript": "^1.9.0-dev.20160627-1.0"
+    "@types/autoprefixer": "^6.7.3",
+    "@types/less": "0.0.32",
+    "@types/marked": "^0.3.0",
+    "@types/mkdirp": "^0.5.2",
+    "@types/node": "latest",
+    "@types/yargs": "0.0.36",
+    "typescript": "^2.6.2"
   },
   "bin": {
     "fapply": "bin/fapply"
+  },
+  "scripts": {
+    "prepare": "tsc",
+    "clean": "tsc --listEmittedFiles | sed 's/^TSFILE: //' | xargs rm -v"
   }
 }

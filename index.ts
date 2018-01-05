@@ -3,14 +3,14 @@ import {dirname, extname} from 'path';
 import {Transform, TransformOptions} from 'stream';
 import {Logger} from 'loge';
 import WalkStream, {FilesystemNode} from 'walk-stream';
+import * as mkdirp from 'mkdirp';
 
 import applicators from './applicators';
 
-var mkdirp = require('mkdirp');
 export const logger = new Logger(process.stderr);
 
 function extend(target, source) {
-  for (var key in source) {
+  for (let key in source) {
     if (source.hasOwnProperty(key)) {
       target[key] = source[key];
     }
@@ -30,13 +30,13 @@ interface ApplicatorInstruction {
 I'm ignoring the extension and just grabbing whatever I can from the first line.
 */
 function parseApplicatorInstructions(line: string): ApplicatorInstruction[] {
-  var html_comment_match = line.match(/^<!--\s*(.+)\s*-->$/);
+  const html_comment_match = line.match(/^<!--\s*(.+)\s*-->$/);
   if (html_comment_match) {
     return JSON.parse(html_comment_match[1]);
   }
 
   // otherwise, match a line starting with # or // or ---
-  var common_comment_match = line.match(/^(?:#|\/\/|---)\s*(.+)\s*$/);
+  const common_comment_match = line.match(/^(?:#|\/\/|---)\s*(.+)\s*$/);
   if (common_comment_match) {
     return JSON.parse(common_comment_match[1]);
   }
@@ -57,11 +57,11 @@ export function transformBuffer(input: Buffer, input_extension: string,
                                 global_options: GlobalTransformOptions,
                                 callback: (error: Error, output?: Buffer, output_extension?: string) => void) {
   // TODO: maybe allow multiline applicator instructions?
-  var header_fragment = input.slice(0, 1024).toString('utf8');
-  var first_linebreak_index = header_fragment.indexOf('\n');
-  var first_line = header_fragment.slice(0, first_linebreak_index);
+  const header_fragment = input.slice(0, 1024).toString('utf8');
+  const first_linebreak_index = header_fragment.indexOf('\n');
+  const first_line = header_fragment.slice(0, first_linebreak_index);
 
-  var applicator_instructions = parseApplicatorInstructions(first_line);
+  let applicator_instructions = parseApplicatorInstructions(first_line);
   if (applicator_instructions === undefined) {
     // if we didn't find instructions, use the default of none,
     // meaning the file contents simply pass through
@@ -69,7 +69,7 @@ export function transformBuffer(input: Buffer, input_extension: string,
   }
   else {
     // if we did find instructions, slice them off
-    var first_line_byteLength = Buffer.byteLength(first_line, 'utf8');
+    const first_line_byteLength = Buffer.byteLength(first_line, 'utf8');
     input = input.slice(first_line_byteLength + 1);
   }
 
@@ -83,12 +83,12 @@ export function transformBuffer(input: Buffer, input_extension: string,
       return callback(null, input, input_extension);
     }
 
-    var applicator_instruction = applicator_instructions.shift();
-    var applicator_name = applicator_instruction.apply;
+    const applicator_instruction = applicator_instructions.shift();
+    const applicator_name = applicator_instruction.apply;
     delete applicator_instruction.apply;
-    var applicator = applicators[applicator_name];
+    let applicator = applicators[applicator_name];
 
-    var options = extend(applicator_instruction, global_options);
+    const options = extend(applicator_instruction, global_options);
     logger.debug(`fapply:${applicator_name}(${JSON.stringify(options)})`);
 
     if (applicator === undefined) {
@@ -118,9 +118,9 @@ export function transformFile(input_filepath: string,
     // changing the working directory to the same as the current file would
     // be easier than passing around a relative directory, but if the calling
     // script depends on process.cwd, it might get lost.
-    var options = {__dirname: dirname(input_filepath)};
+    const options = {__dirname: dirname(input_filepath)};
 
-    var input_extension = extname(input_filepath);
+    const input_extension = extname(input_filepath);
 
     transformBuffer(input, input_extension, options, (error, output, output_extension) => {
       if (error) return callback(error);
@@ -143,8 +143,8 @@ class WalkStreamTransformer extends Transform {
     super(options);
   }
   _transform(node: FilesystemNode, encoding, callback) {
-    var input_filepath = node.path;
-    var output_filepath = input_filepath.replace(this.input_dirpath, this.output_dirpath);
+    const input_filepath = node.path;
+    const output_filepath = input_filepath.replace(this.input_dirpath, this.output_dirpath);
     mkdirp.sync(dirname(output_filepath))
 
     if (node.stats.isFile()) {
